@@ -1,0 +1,1 @@
+This code helps to operate robot using Astar algorithm. The map is feed into raspberry pi on which astar algorithm is applied and instructed robot on shortest path using algorithm. 
