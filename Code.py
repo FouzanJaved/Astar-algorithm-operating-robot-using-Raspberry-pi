@@ -1,0 +1,1181 @@
+
+#For Pygame and thread 
+import pygame
+from Queue import Queue
+from threading import Thread
+
+            ###
+
+#For auto keys input
+from pynput.keyboard import Key, Controller
+            ###
+
+#adding Astar code
+from heapq import heappush, heappop # for priority queue
+import math
+import time
+import random
+from Tkinter import *
+import pdb
+root = Tk()
+canvas = Canvas(root, width=1080, height=640)
+canvas.pack()
+            ###
+
+#This is for client laptop to connect to robot bottle Server
+import urllib2
+            ###
+
+#This is for playsound
+from playsound import playsound
+###
+
+keyboard=Controller()
+route=0
+global xA
+global yA
+xB=0.1
+yB=0.1
+
+xAA=1
+xBB=1
+
+n = 30 # horizontal size of the map
+m = 30 # vertical size of the map
+the_map = []
+dirs=8
+dx = [1, 1, 0, -1, -1, -1, 0, 1]
+dy = [0, 1, 1, 1, 0, -1, -1, -1]
+
+
+### intializing the sound
+pygame.mixer.init()
+###
+
+#Astar Algorithm Code:-
+
+def MakeMap(canvas, x0, y0, x1, y1, row, col, Norow, Nocol,xy):
+    # draw a Map in the area bounded by (x0,y0) in
+    # the top-left and (x1,y1) in the bottom-right
+
+    if (xy==0):
+        #canvas.create_rectangle(x0, y0, x0+width/3, y1, fill="black", width=0)
+        canvas.create_rectangle(x0, y0, x1, y1, fill="black", width=0)
+        #canvas.create_rectangle(x0+width/3, y0, x0+width*2/3, y1, fill="black", width=0)
+        #canvas.create_rectangle(x0+width*2/3, y0, x1, y1, fill="black", width=0)
+        #print "step1"
+
+    elif (xy==1):
+        width = (x1 - x0)
+        canvas.create_rectangle(x0, y0, x0+width/3, y1, fill="red", width=0)
+        canvas.create_rectangle(x0+width/3, y0, x0+width*2/3, y1, fill="red", width=0)
+        canvas.create_rectangle(x0+width*2/3, y0, x1, y1, fill="red", width=0)
+        #print "step1"
+
+    elif (xy==2):
+        width = (x1 - x0)
+        canvas.create_rectangle(x0, y0, x0+width/3, y1, fill="blue", width=0)
+        canvas.create_rectangle(x0+width/3, y0, x0+width*2/3, y1, fill="blue", width=0)
+        canvas.create_rectangle(x0+width*2/3, y0, x1, y1, fill="blue", width=0)
+        #print "step1"
+
+    elif (xy==3):
+        width = (x1 - x0)
+        canvas.create_rectangle(x0, y0, x0+width/3, y1, fill="green", width=0)
+        canvas.create_rectangle(x0+width/3, y0, x0+width*2/3, y1, fill="green", width=0)
+        canvas.create_rectangle(x0+width*2/3, y0, x1, y1, fill="green", width=0)
+        #print "step1"
+
+    elif (xy==4):
+        width = (x1 - x0)
+        canvas.create_rectangle(x0, y0, x0+width/3, y1, fill="gray", width=0)
+        canvas.create_rectangle(x0+width/3, y0, x0+width*2/3, y1, fill="gray", width=0)
+        canvas.create_rectangle(x0+width*2/3, y0, x1, y1, fill="gray", width=0)
+        #print "step1"
+
+
+    else:    
+        width = (x1 - x0)
+        canvas.create_rectangle(x0, y0, x0+width/3, y1, fill="black", width=0)
+        canvas.create_rectangle(x0+width/3, y0, x0+width*2/3, y1, fill="black", width=0)
+        canvas.create_rectangle(x0+width*2/3, y0, x1, y1, fill="black", width=0)
+        #print "step1"
+
+        
+
+class node:
+    xPos = 0 # x position
+    
+    yPos = 0 # y position
+    distance = 0 # total distance already travelled to reach the node
+    priority = 0 # priority = distance + remaining distance estimate
+    def __init__(self, xPos, yPos, distance, priority):
+        self.xPos = xPos
+        self.yPos = yPos
+        self.distance = distance
+        self.priority = priority
+        
+    def __lt__(self, other): # comparison method for priority queue
+        return self.priority < other.priority
+
+    def updatePriority(self, xDest, yDest):
+        self.priority = self.distance + self.estimate(xDest, yDest) * 10 # A*
+    # give higher priority to going straight instead of diagonally
+    def nextMove(self, dirs, d): # d: direction to move
+        if dirs == 8 and d % 2 != 0:
+            self.distance += 14
+        else:
+            self.distance += 10
+    # Estimation function for the remaining distance to the goal.
+    def estimate(self, xDest, yDest):
+        xd = xDest - self.xPos
+        yd = yDest - self.yPos
+        # Euclidian Distance
+        d = math.sqrt(xd * xd + yd * yd)
+        # Manhattan distance
+        # d = abs(xd) + abs(yd)
+        # Chebyshev distance
+        # d = max(abs(xd), abs(yd))
+        return(d)
+
+# A-star algorithm.
+# The path returned will be a string of digits of directions.
+def pathFind(the_map, n, m, dirs, dx, dy, xA, yA, xB, yB):
+    closed_nodes_map = [] # map of closed (tried-out) nodes
+    open_nodes_map = [] # map of open (not-yet-tried) nodes
+    dir_map = [] # map of dirs
+    row = [0] * n
+    for i in range(m): # create 2d arrays
+        closed_nodes_map.append(list(row))
+        open_nodes_map.append(list(row))
+        dir_map.append(list(row))
+
+    pq = [[], []] # priority queues of open (not-yet-tried) nodes
+    pqi = 0 # priority queue index
+    # create the start node and push into list of open nodes
+    n0 = node(xA, yA, 0, 0)
+    n0.updatePriority(xB, yB)
+    heappush(pq[pqi], n0)
+    open_nodes_map[yA][xA] = n0.priority # mark it on the open nodes map
+
+    # A* search
+    while len(pq[pqi]) > 0:
+        
+        
+        # get the current node w/ the highest priority
+        # from the list of open nodes
+        n1 = pq[pqi][0] # top node
+        n0 = node(n1.xPos, n1.yPos, n1.distance, n1.priority)
+        x = n0.xPos
+        y = n0.yPos
+        heappop(pq[pqi]) # remove the node from the open list
+        open_nodes_map[y][x] = 0
+        closed_nodes_map[y][x] = 1 # mark it on the closed nodes map
+
+        # quit searching when the goal is reached
+        # if n0.estimate(xB, yB) == 0:
+        if x == xB and y == yB:
+            # generate the path from finish to start
+            # by following the dirs
+            path = ''
+            while not (x == xA and y == yA):
+                j = dir_map[y][x]
+                c = str((j + dirs / 2) % dirs)
+                path = c + path
+                x += dx[j]
+                y += dy[j]
+            return path
+
+        # generate moves (child nodes) in all possible dirs
+        for i in range(dirs):
+            xdx = x + dx[i]
+            ydy = y + dy[i]
+            if not (xdx < 0 or xdx > n-1 or ydy < 0 or ydy > m - 1
+                    or the_map[ydy][xdx] == 1 or closed_nodes_map[ydy][xdx] == 1):
+                # generate a child node
+                m0 = node(xdx, ydy, n0.distance, n0.priority)
+                m0.nextMove(dirs, i)
+                m0.updatePriority(xB, yB)
+                # if it is not in the open list then add into that
+                if open_nodes_map[ydy][xdx] == 0:
+                    open_nodes_map[ydy][xdx] = m0.priority
+                    heappush(pq[pqi], m0)
+                    # mark its parent node direction
+                    dir_map[ydy][xdx] = (i + dirs / 2) % dirs
+                elif open_nodes_map[ydy][xdx] > m0.priority:
+                    # update the priority
+                    open_nodes_map[ydy][xdx] = m0.priority
+                    # update the parent direction
+                    dir_map[ydy][xdx] = (i + dirs / 2) % dirs
+                    # replace the node
+                    # by emptying one pq to the other one
+                    # except the node to be replaced will be ignored
+                    # and the new node will be pushed in instead
+                    while not (pq[pqi][0].xPos == xdx and pq[pqi][0].yPos == ydy):
+                        
+                        heappush(pq[1 - pqi], pq[pqi][0])
+                        
+                        heappop(pq[pqi])
+
+                    heappop(pq[pqi]) # remove the target node
+                    # empty the larger size priority queue to the smaller one
+                    if len(pq[pqi]) > len(pq[1 - pqi]):
+                        pqi = 1 - pqi
+                    while len(pq[pqi]) > 0:
+                        heappush(pq[1-pqi], pq[pqi][0])
+                        heappop(pq[pqi])
+                        #pdb.set_trace()
+                    pqi = 1 - pqi
+                    heappush(pq[pqi], m0) # add the better node instead
+    return '' # if no route found
+
+# MAIN
+dirs = 8 # number of possible directions to move on the map
+if dirs == 4:
+    dx = [1, 0, -1, 0]
+    dy = [0, 1, 0, -1]
+elif dirs == 8:
+    dx = [1, 1, 0, -1, -1, -1, 0, 1]
+    dy = [0, 1, 1, 1, 0, -1, -1, -1]
+
+n = 30 # horizontal size of the map
+m = 30 # vertical size of the map
+the_map = []
+row = [0] * n
+for i in range(m): # create empty map
+    the_map.append(list(row))
+
+# FOR BLOCKAGES
+for x in range(n / 8, n * 7 / 8):
+    the_map[m / 2][x] = 1
+for y in range(m/8, m * 7 / 8):
+    the_map[y][n / 2] = 1
+
+# randomly select start and finish locations from a list
+sf = []
+sf.append((0,0, 29, 29))
+sf.append((n - 1, m - 1, 0, 0))
+sf.append((0, 0, n - 1, 0))
+sf.append((0, 0, n / 2 + 1, m / 2 + 1))
+sf.append((0, 0, n / 2 + 1, m / 2 - 1))
+sf.append((0, 0, n / 2 + 1, m - 1))
+sf.append((0, 0, n / 2 - 1, 0))
+sf.append((0, 0, n - 1, m / 2 + 1))
+sf.append((0, 0, 0, m / 2 - 1))
+#(xA, yA, xB, yB) = random.choice(sf)
+(xA, yA, xB, yB) = sf[0]
+
+print 'Map size (X,Y): ', n, m
+print 'Start: ', xA, yA
+print 'Finish: ', xB, yB
+t = time.time()
+route = pathFind(the_map, n, m, dirs, dx, dy, xA, yA, xB, yB)
+print 'Time to generate the route (seconds): ', time.time() - t
+print 'Route:'
+print route
+playsound('1Astar.mp3')
+
+def MarkRoute(routee,xAAA,yAAA):
+    # mark the route on the map
+    if len(routee) > 0:
+        x = xAAA
+        y = yAAA
+        print('xA:',xA)
+        print('yA:',yA)
+        the_map[y][x] = 2
+        for i in range(len(route)):
+            j = int(route[i])
+            x += dx[j]
+            y += dy[j]
+            the_map[y][x] = 3
+        the_map[y][x] = 4
+
+    # display the map with the route added
+    print 'Map:'
+
+    for y in range(m):
+        for x in range(n):
+            col=x
+            row=y
+            width = 20
+            height = 20
+            margin = 2
+                
+            Norow = 30
+            Nocol = 30
+            left = 0 + col * width + margin
+            top = 0 + row * height + margin
+            right = left + width - margin
+            bottom = top + height - margin
+        
+            xy = the_map[y][x]
+            if xy == 0:
+                print '.', # space
+                MakeMap(canvas, left, top, right, bottom, x, y, m, n, xy)
+            elif xy == 1:
+                print 'O', # obstacle
+                MakeMap(canvas, left, top, right, bottom, x, y, m, n, xy)
+            elif xy == 2:
+                print 'S', # start
+                MakeMap(canvas, left, top, right, bottom, x, y, m, n, xy)
+            elif xy == 3:
+                print 'R', # route
+                MakeMap(canvas, left, top, right, bottom, x, y, m, n, xy)
+            elif xy == 4:
+                print 'F', # finish
+                MakeMap(canvas, left, top, right, bottom, x, y, m, n, xy)
+        print
+
+    print("Kindly view this map, this is is the path we are going to follow")
+    playsound('Path.mp3')
+    time.sleep(4)
+
+MarkRoute(route,xA,yA) 
+
+# Finally, don't forge to display the window!
+# Here it is if gui to show
+#root.mainloop()
+
+#raw_input('Press Enter...')
+
+################## ASTAR ALGORITHM ENDS HERE ######################
+
+
+#declaring the variables to check if they were previously used or its first
+#time robot is moving on these paths
+
+b0=0
+b1=0
+b2=0
+b3=0
+b4=0
+b5=0
+b6=0
+b7=0
+b8=0
+b9=0
+
+#obstacleComes
+ObstacleRoute = list()
+
+#Thread starts from here so that multiple codes can run at the same time
+#here the thread is applied
+q = Queue()
+def worker():
+    #Converting route to array
+    list(route)
+    print(route[0])
+    i=0
+    ip="http://192.168.100.6:8080/"
+
+    while i< len(route):
+        print(route[i])
+
+        # if it is the first point for robot to start
+        # we have to check the direction only in this path
+        CheckRoute=[]
+        
+        if(i==0):
+
+            
+            if(route[i]=="1"):
+                playsound('4UpRight.mp3')
+                keyboard.press(Key.right)
+                keyboard.press(Key.down)
+                time.sleep(.1)
+                keyboard.release(Key.right)
+                keyboard.release(Key.down)
+                contents = urllib2.urlopen(ip+"1").read()
+                ObstacleRoute.append(1)
+                print contents
+
+
+            elif(route[i]=="2"):
+                playsound('2Straight.mp3')
+                keyboard.press(Key.down)
+                time.sleep(.1)
+                keyboard.release(Key.down)
+                contents = urllib2.urlopen(ip+"2").read()
+                ObstacleRoute.append(2)
+                print contents
+
+
+            elif(route[i]=="7"):
+                playsound('4UpRight.mp3')
+                keyboard.press(Key.right)
+                keyboard.press(Key.up)
+                time.sleep(.1)
+                keyboard.release(Key.right)
+                keyboard.release(Key.up)
+                contents = urllib2.urlopen(ip+"7").read()
+                ObstacleRoute.append(7)
+                print contents
+
+
+            elif(route[i]=="5"):
+                playsound('3UpLeft.mp3')
+                keyboard.press(Key.left)
+                keyboard.press(Key.up)
+                time.sleep(.1)
+                keyboard.release(Key.left)
+                keyboard.release(Key.up)
+                contents = urllib2.urlopen(ip+"5").read()
+                ObstacleRoute.append(5)
+                print contents
+
+            elif(route[i]=="3"):
+                playsound('3UpLeft.mp3')
+                keyboard.press(Key.left)
+                keyboard.press(Key.down)
+                time.sleep(.1)
+                keyboard.release(Key.left)
+                keyboard.release(Key.down)
+                contents = urllib2.urlopen(ip+"3").read()
+                ObstacleRoute.append(3)
+                print contents
+
+            elif(route[i]=="6"):
+                playsound('2Straight.mp3')
+                keyboard.press(Key.up)
+                time.sleep(.1)
+                keyboard.release(Key.up)
+                contents = urllib2.urlopen(ip+"6").read()
+                ObstacleRoute.append(6)
+                print contents
+
+
+            elif(route[i]=="0"):
+                playsound('7Right.mp3')
+                keyboard.press(Key.right)
+                time.sleep(.1)
+                keyboard.release(Key.right)
+                playsound('7Right.mp3')
+                contents = urllib2.urlopen(ip+"0").read()
+                ObstacleRoute.append(0)
+                print contents
+
+
+            elif(route[i]=="4"):
+                playsound('6left.mp3')
+                keyboard.press(Key.left)
+                time.sleep(.1)
+                keyboard.release(Key.left)
+                contents = urllib2.urlopen(ip+"4").read()
+                ObstacleRoute.append(4)
+                print contents
+
+
+            else:
+                playsound('2Straight.mp3')
+                keyboard.press(Key.down)
+                time.sleep(.1)
+                keyboard.release(Key.down)
+                ObstacleRoute.append(2)
+
+            time.sleep(.25)
+            i+=1
+                
+
+        ##################### if ended #######################
+
+
+        elif(contents=='Obstacle'):
+            print("GOT OBSTACLE")
+            playsound('Obstacle.mp3')
+            playsound('Regenerating.mp3')
+            print(ObstacleRoute)
+            
+            a=0
+            while a<len(ObstacleRoute):
+                print(len(ObstacleRoute))
+                global xA
+                global yA
+                print(xA)
+                print(yA)
+                if(ObstacleRoute[a]==1):
+                    xA=xA+1
+                    yA=yA+1
+                    #print("got 1 and is diagonal so added in x and y both 1")
+
+                elif(ObstacleRoute[a]==2):
+                    xA=xA+0
+                    yA=yA+1
+                    #print("got 2 and is downward so added in y 1 only")
+
+
+                elif(ObstacleRoute[a]==0):
+                    xA=xA+1
+                    yA=yA+0
+
+                    #print("got 0 and is horizantol so added in x 1 only")
+
+
+                elif(ObstacleRoute[a]==7):
+                    xA=xA+1
+                    yA=yA-1
+                   # print("got 7 and is diagol up so added in x 1 and subtarcted from y 1")
+                    
+
+                elif(ObstacleRoute[a]==6):
+                    xA=xA+0
+                    yA=yA+1
+                    #print("got 6 and is up so added in y 1 only")
+
+                elif(ObstacleRoute[a]==5):
+                    xA=xA-1
+                    yA=yA-1
+                    #print("got 6 and is up so added in y 1 only")
+
+                else:
+                    print("nothing")
+
+
+                global xB
+                global yB
+                print("new xA and yA are")
+                print(xA)
+                print(yA)
+                    
+                a=a+1
+                time.sleep(2)
+            print("Here is xA and yA")
+            print 'Map size (X,Y): ', n, m
+            print 'Start: ', xA, yA
+            print 'Finish: ', xB, yB
+            route1=pathFind(the_map, n, m, dirs, dx, dy, xA, yA, xB, yB)
+            print route1
+            MarkRoute(route1,xA,yA)
+            print(xA)
+            print(yA)
+
+                
+            
+
+        #in this else we will get to know
+        #previous route point we have covered
+            
+        else:
+
+            if(route[i]=="0"):
+                playsound('7Right.mp3')
+                keyboard.press(Key.right)
+                time.sleep(.1)
+                keyboard.release(Key.right)
+                playsound('7Right.mp3')
+
+                #now checking what was the last point we have covered
+                #this will help us to take decision to move in correct direction
+
+                if(route[i-1]=="0"):
+                    print("Sending 00")
+                    contents = urllib2.urlopen(ip+"00").read()
+                    print contents
+                
+                elif(route[i-1]=="1"):
+                    print("Sending 10")
+                    contents = urllib2.urlopen(ip+"10").read()
+                    print contents
+
+                elif(route[i-1]=="2"):
+                    print("Sending route 20")
+                    contents = urllib2.urlopen(ip+"20").read()
+                    print contents
+
+                elif(route[i-1]=="3"):
+                    print("Sending route 30")
+                    contents = urllib2.urlopen(ip+"30").read()
+                    print contents
+
+                elif(route[i-1]=="4"):
+                    print("Sending route 40")
+                    contents = urllib2.urlopen(ip+"40").read()
+                    print contents
+
+                elif(route[i-1]=="5"):
+                    print("Sending route 50")
+                    contents = urllib2.urlopen(ip+"50").read()
+                    print contents
+
+                elif(route[i-1]=="6"):
+                    print("Sending route 60")
+                    contents = urllib2.urlopen(ip+"60").read()
+                    print contents
+
+                elif(route[i-1]=="7"):
+                    print("Sending route 70")
+                    contents = urllib2.urlopen(ip+"70").read()
+                    print contents
+
+                else:
+                    print("Sending nothing")
+
+                ObstacleRoute.append(0)
+
+            
+            elif(route[i]=="1"):
+                playsound('4UpRight.mp3')
+                keyboard.press(Key.right)
+                keyboard.press(Key.down)
+                time.sleep(.1)
+                keyboard.release(Key.right)
+                keyboard.release(Key.down)
+
+                #now checking what was the last point we have covered
+                #this will help us to take decision to move in correct direction
+
+                if(route[i-1]=="0"):
+                    print("Sending 01")
+                    contents = urllib2.urlopen(ip+"01").read()
+                    print contents
+                
+                elif(route[i-1]=="1"):
+                    print("Sending 11")
+                    contents = urllib2.urlopen(ip+"11").read()
+                    print contents
+
+                elif(route[i-1]=="2"):
+                    print("Sending route 21")
+                    contents = urllib2.urlopen(ip+"21").read()
+                    print contents
+
+                elif(route[i-1]=="3"):
+                    print("Sending route 31")
+                    contents = urllib2.urlopen(ip+"31").read()
+                    print contents
+
+                elif(route[i-1]=="4"):
+                    print("Sending route 41")
+                    contents = urllib2.urlopen(ip+"41").read()
+                    print contents
+
+                elif(route[i-1]=="5"):
+                    print("Sending route 51")
+                    contents = urllib2.urlopen(ip+"51").read()
+                    print contents
+
+                elif(route[i-1]=="6"):
+                    print("Sending route 61")
+                    contents = urllib2.urlopen(ip+"61").read()
+                    print contents
+
+                elif(route[i-1]=="7"):
+                    print("Sending route 71")
+                    contents = urllib2.urlopen(ip+"71").read()
+                    print contents
+
+                else:
+                    print("Sending nothing")
+
+                ObstacleRoute.append(1)
+
+            
+            ##Here is the end of 1 route
+            #So we will make that 1 has been visited while other should be zero
+            
+
+            elif(route[i]=="2"):
+                playsound('2Straight.mp3')
+                keyboard.press(Key.down)
+                time.sleep(.1)
+                keyboard.release(Key.down)
+
+                
+                #now checking what was the last point we have covered
+                #this will help us to take decision to move in correct direction
+
+                if(route[i-1]=="0"):
+                    print("Sending 02")
+                    contents = urllib2.urlopen(ip+"02").read()
+                    print contents
+                
+                elif(route[i-1]=="1"):
+                    print("Sending 12")
+                    contents = urllib2.urlopen(ip+"12").read()
+                    print contents
+
+                elif(route[i-1]=="2"):
+                    print("Sending route 22")
+                    contents = urllib2.urlopen(ip+"22").read()
+                    print contents
+
+                elif(route[i-1]=="3"):
+                    print("Sending route 32")
+                    contents = urllib2.urlopen(ip+"32").read()
+                    print contents
+
+                elif(route[i-1]=="4"):
+                    print("Sending route 42")
+                    contents = urllib2.urlopen(ip+"42").read()
+                    print contents
+
+                elif(route[i-1]=="5"):
+                    print("Sending route 52")
+                    contents = urllib2.urlopen(ip+"52").read()
+                    print contents
+
+                elif(route[i-1]=="6"):
+                    print("Sending route 62")
+                    contents = urllib2.urlopen(ip+"62").read()
+                    print contents
+
+                elif(route[i-1]=="7"):
+                    print("Sending route 72")
+                    contents = urllib2.urlopen(ip+"72").read()
+                    print contents
+
+                else:
+                    print("Sending nothing")
+
+                ObstacleRoute.append(2)
+
+
+
+            elif(route[i]=="3"):
+                playsound('3UpLeft.mp3')
+                keyboard.press(Key.left)
+                keyboard.press(Key.down)
+                time.sleep(.1)
+                keyboard.release(Key.left)
+                keyboard.release(Key.down)
+                
+                #now checking what was the last point we have covered
+                #this will help us to take decision to move in correct direction
+
+                if(route[i-1]=="0"):
+                    print("Sending 03")
+                    contents = urllib2.urlopen(ip+"03").read()
+                    print contents
+                
+                elif(route[i-1]=="1"):
+                    print("Sending 13")
+                    contents = urllib2.urlopen(ip+"13").read()
+                    print contents
+
+                elif(route[i-1]=="2"):
+                    print("Sending route 23")
+                    contents = urllib2.urlopen(ip+"23").read()
+                    print contents
+
+                elif(route[i-1]=="3"):
+                    print("Sending route 33")
+                    contents = urllib2.urlopen(ip+"33").read()
+                    print contents
+
+                elif(route[i-1]=="4"):
+                    print("Sending route 43")
+                    contents = urllib2.urlopen(ip+"43").read()
+                    print contents
+
+                elif(route[i-1]=="5"):
+                    print("Sending route 53")
+                    contents = urllib2.urlopen(ip+"53").read()
+                    print contents
+
+                elif(route[i-1]=="6"):
+                    print("Sending route 63")
+                    contents = urllib2.urlopen(ip+"63").read()
+                    print contents
+
+                elif(route[i-1]=="7"):
+                    print("Sending route 73")
+                    contents = urllib2.urlopen(ip+"73").read()
+                    print contents
+
+                else:
+                    print("Sending nothing")
+
+                ObstacleRoute.append(3)
+
+
+
+
+            elif(route[i]=="4"):
+                playsound('6left.mp3')
+                keyboard.press(Key.left)
+                time.sleep(.1)
+                keyboard.release(Key.left)
+
+                #now checking what was the last point we have covered
+                #this will help us to take decision to move in correct direction
+
+                if(route[i-1]=="0"):
+                    print("Sending 04")
+                    contents = urllib2.urlopen(ip+"04").read()
+                    print contents
+                
+                elif(route[i-1]=="1"):
+                    print("Sending 14")
+                    contents = urllib2.urlopen(ip+"14").read()
+                    print contents
+
+                elif(route[i-1]=="2"):
+                    print("Sending route 24")
+                    contents = urllib2.urlopen(ip+"24").read()
+                    print contents
+
+                elif(route[i-1]=="3"):
+                    print("Sending route 34")
+                    contents = urllib2.urlopen(ip+"34").read()
+                    print contents
+
+                elif(route[i-1]=="4"):
+                    print("Sending route 44")
+                    contents = urllib2.urlopen(ip+"44").read()
+                    print contents
+
+                elif(route[i-1]=="5"):
+                    print("Sending route 54")
+                    contents = urllib2.urlopen(ip+"54").read()
+                    print contents
+
+                elif(route[i-1]=="6"):
+                    print("Sending route 64")
+                    contents = urllib2.urlopen(ip+"64").read()
+                    print contents
+
+                elif(route[i-1]=="7"):
+                    print("Sending route 74")
+                    contents = urllib2.urlopen(ip+"74").read()
+                    print contents
+
+                else:
+                    print("Sending nothing")
+
+                ObstacleRoute.append(4)
+
+
+            elif(route[i]=="5"):
+                playsound('3UpLeft.mp3')
+                keyboard.press(Key.left)
+                keyboard.press(Key.up)
+                time.sleep(.1)
+                keyboard.release(Key.left)
+                keyboard.release(Key.up)
+                
+                #now checking what was the last point we have covered
+                #this will help us to take decision to move in correct direction
+
+                if(route[i-1]=="0"):
+                    print("Sending 05")
+                    contents = urllib2.urlopen(ip+"05").read()
+                    print contents
+                
+                elif(route[i-1]=="1"):
+                    print("Sending 15")
+                    contents = urllib2.urlopen(ip+"15").read()
+                    print contents
+
+                elif(route[i-1]=="2"):
+                    print("Sending route 25")
+                    contents = urllib2.urlopen(ip+"25").read()
+                    print contents
+
+                elif(route[i-1]=="3"):
+                    print("Sending route 35")
+                    contents = urllib2.urlopen(ip+"35").read()
+                    print contents
+
+                elif(route[i-1]=="4"):
+                    print("Sending route 45")
+                    contents = urllib2.urlopen(ip+"45").read()
+                    print contents
+
+                elif(route[i-1]=="5"):
+                    print("Sending route 55")
+                    contents = urllib2.urlopen(ip+"55").read()
+                    print contents
+
+                elif(route[i-1]=="6"):
+                    print("Sending route 65")
+                    contents = urllib2.urlopen(ip+"65").read()
+                    print contents
+
+                elif(route[i-1]=="7"):
+                    print("Sending route 75")
+                    contents = urllib2.urlopen(ip+"75").read()
+                    print contents
+
+                else:
+                    print("Sending nothing")
+
+                ObstacleRoute.append(5)
+
+
+            elif(route[i]=="6"):
+                playsound('2Straight.mp3')
+                keyboard.press(Key.up)
+                time.sleep(.1)
+                keyboard.release(Key.up)
+                
+                #now checking what was the last point we have covered
+                #this will help us to take decision to move in correct direction
+
+                if(route[i-1]=="0"):
+                    print("Sending 06")
+                    contents = urllib2.urlopen(ip+"06").read()
+                    print contents
+                
+                elif(route[i-1]=="1"):
+                    print("Sending 16")
+                    contents = urllib2.urlopen(ip+"16").read()
+                    print contents
+
+                elif(route[i-1]=="2"):
+                    print("Sending route 26")
+                    contents = urllib2.urlopen(ip+"26").read()
+                    print contents
+
+                elif(route[i-1]=="3"):
+                    print("Sending route 36")
+                    contents = urllib2.urlopen(ip+"36").read()
+                    print contents
+
+                elif(route[i-1]=="4"):
+                    print("Sending route 46")
+                    contents = urllib2.urlopen(ip+"46").read()
+                    print contents
+
+                elif(route[i-1]=="5"):
+                    print("Sending route 56")
+                    contents = urllib2.urlopen(ip+"56").read()
+                    print contents
+
+                elif(route[i-1]=="6"):
+                    print("Sending route 66")
+                    contents = urllib2.urlopen(ip+"66").read()
+                    print contents
+
+                elif(route[i-1]=="7"):
+                    print("Sending route 76")
+                    contents = urllib2.urlopen(ip+"76").read()
+                    print contents
+
+                else:
+                    print("Sending nothing")
+
+                ObstacleRoute.append(6)
+
+
+            
+
+            elif(route[i]=="7"):
+                playsound('4UpRight.mp3')
+                keyboard.press(Key.right)
+                keyboard.press(Key.up)
+                time.sleep(.1)
+                keyboard.release(Key.right)
+                keyboard.release(Key.up)
+                #now checking what was the last point we have covered
+                #this will help us to take decision to move in correct direction
+
+                if(route[i-1]=="0"):
+                    print("Sending 07")
+                    contents = urllib2.urlopen(ip+"07").read()
+                    print contents
+                
+                elif(route[i-1]=="1"):
+                    print("Sending 17")
+                    contents = urllib2.urlopen(ip+"17").read()
+                    print contents
+
+                elif(route[i-1]=="2"):
+                    print("Sending route 27")
+                    contents = urllib2.urlopen(ip+"27").read()
+                    print contents
+
+                elif(route[i-1]=="3"):
+                    print("Sending route 37")
+                    contents = urllib2.urlopen(ip+"37").read()
+                    print contents
+
+                elif(route[i-1]=="4"):
+                    print("Sending route 47")
+                    contents = urllib2.urlopen(ip+"47").read()
+                    print contents
+
+                elif(route[i-1]=="5"):
+                    print("Sending route 57")
+                    contents = urllib2.urlopen(ip+"57").read()
+                    print contents
+
+                elif(route[i-1]=="6"):
+                    print("Sending route 67")
+                    contents = urllib2.urlopen(ip+"67").read()
+                    print contents
+
+                elif(route[i-1]=="7"):
+                    print("Sending route 77")
+                    contents = urllib2.urlopen(ip+"77").read()
+                    print contents
+
+                else:
+                    print("Sending nothing")
+
+                ObstacleRoute.append(7)
+
+
+
+
+
+            else:
+                playsound('2Straight.mp3')
+                keyboard.press(Key.down)
+                time.sleep(.1)
+                keyboard.release(Key.down)
+
+            time.sleep(.25)
+            i+=1
+
+
+            #################  ELSE ENDED HERE #####################
+            
+            
+                
+
+            
+            
+
+
+t = Thread(target=worker)
+t.daemon = True
+t.start()
+#Here the thread ends
+
+
+#Here the percentage from grid is getting
+xAA=0.1
+yAA=0.1
+
+xAA=xA
+print("xAA",xAA)
+
+RobotxA=(xAA/30.0)
+RobotxA=RobotxA*700
+print("RobotxA",RobotxA)
+
+yAA=yA
+RobotyA=(yAA/30.0)
+RobotyA=RobotyA*600
+print("RobotyA",RobotyA)
+
+RobotxB=(xB/30)*(100)
+RobotxB=RobotxB*1000
+print(RobotxB)
+
+RobotyB=(yB/30)*(100)
+RobotyB=RobotyB*700
+print(RobotyB)
+
+
+# This code will be run in the parallel of the thread 
+# Define some colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+
+def draw_stick_figure(x,y):
+    screen.blit(carImg, (x,y))
+
+ 
+def draw_stick_figure1(screen, x, y):
+    # Head
+    pygame.draw.ellipse(screen, BLACK, [1 + x, y, 10, 10], 0)
+ 
+    # Legs
+    pygame.draw.line(screen, BLACK, [5 + x, 17 + y], [10 + x, 27 + y], 2)
+    pygame.draw.line(screen, BLACK, [5 + x, 17 + y], [x, 27 + y], 2)
+ 
+    # Body
+    pygame.draw.line(screen, RED, [5 + x, 17 + y], [5 + x, 7 + y], 2)
+ 
+    # Arms
+    pygame.draw.line(screen, RED, [5 + x, 7 + y], [9 + x, 17 + y], 2)
+    pygame.draw.line(screen, RED, [5 + x, 7 + y], [1 + x, 17 + y], 2)
+ 
+# Setup
+pygame.init()
+ 
+# Set the width and height of the screen [width,height]
+size = [700, 600]
+screen = pygame.display.set_mode(size)
+#screen.fill(RED)
+ 
+pygame.display.set_caption("My Game")
+
+carImg = pygame.image.load('robott.png')
+ 
+# Loop until the user clicks the close button.
+done = False
+ 
+# Used to manage how fast the screen updates
+clock = pygame.time.Clock()
+ 
+# Hide the mouse cursor
+pygame.mouse.set_visible(0)
+ 
+# Speed in pixels per frame
+x_speed = 0
+y_speed = 0
+ 
+# Current position
+x_coord = RobotxA
+y_coord = RobotyA
+
+
+
+while not done:
+    # --- Event Processing
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            done = True
+            # User pressed down on a key
+ 
+        elif event.type == pygame.KEYDOWN:
+            # Figure out if it was an arrow key. If so
+            # adjust speed.
+            if event.key == pygame.K_LEFT:
+                pygame.transform.rotate(carImg, 90)
+                x_speed = -3
+                9
+            elif event.key == pygame.K_RIGHT:
+                pygame.transform.rotate(carImg, 90)
+                x_speed = 3
+            elif event.key == pygame.K_UP:
+                pygame.transform.rotate(carImg, 90)
+                y_speed = -3
+            elif event.key == pygame.K_DOWN:
+                pygame.transform.rotate(carImg, 90)
+                y_speed = 3
+ 
+        # User let up on a key
+        elif event.type == pygame.KEYUP:
+            # If it is an arrow key, reset vector back to zero
+            if event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT:
+                x_speed = 0
+            elif event.key == pygame.K_UP or event.key == pygame.K_DOWN:
+                y_speed = 0
+ 
+    # --- Game Logic
+ 
+    # Move the object according to the speed vector.
+    x_coord = x_coord + x_speed
+    y_coord = y_coord + y_speed
+ 
+    # --- Drawing Code
+ 
+    # First, clear the screen to WHITE. Don't put other drawing commands
+    # above this, or they will be erased with this command.
+    screen.fill(WHITE)
+ 
+    draw_stick_figure( x_coord, y_coord)
+ 
+ 
+    # Go ahead and update the screen with what we've drawn.
+    pygame.display.flip()
+ 
+    # Limit frames per second
+    clock.tick(60)
+ 
+# Close the window and quit.
+pygame.quit()
